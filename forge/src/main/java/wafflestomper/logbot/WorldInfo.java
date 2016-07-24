@@ -80,7 +80,7 @@ public class WorldInfo{
 				requestWorldID();
 				serverIP = mc.getCurrentServerData().serverIP;
 				//serverIP = .getNetHandler().getNetworkManager().getRemoteAddress().toString();
-				mc.thePlayer.addChatMessage(new TextComponentString(worldID + " " + serverIP));
+				//mc.thePlayer.addChatMessage(new TextComponentString(worldID + " " + serverIP));
 			}
 		}
 	}
@@ -89,7 +89,7 @@ public class WorldInfo{
 	private void requestWorldID() {
 		long now = System.currentTimeMillis();
 		if((lastRequest + MIN_DELAY_MS < now) && (lastResponse + MIN_DELAY_MS < now)) {
-			System.out.println("Sending request..");
+			//System.out.println("Sending request..");
 			channel.sendToServer(new WorldIDPacket());
 			lastRequest = System.currentTimeMillis();
 		}

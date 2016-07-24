@@ -34,14 +34,13 @@ import net.minecraftforge.fml.common.gameevent.TickEvent.PlayerTickEvent;
 public class LogBot
 {
     public static final String MODID = "LogBot";
-    public static final String VERSION = "0.1.0";
+    public static final String VERSION = "0.1.3";
     public static final String NAME = "LogBot";
     
     Minecraft mc;
     private boolean devEnv = true;
     private KeyBindings keybindings;
     private WorldInfo worldInfo;
-    private DBManager db;
     private ConfigManager config;
     private boolean logMasterEnable = true;
     private boolean logChests = true;
@@ -59,9 +58,7 @@ public class LogBot
     	FMLCommonHandler.instance().bus().register(this);
 		MinecraftForge.EVENT_BUS.register(this);
 		this.keybindings = new KeyBindings(this);
-		this.db = new DBManager();
 		this.devEnv = (Boolean)Launch.blackboard.get("fml.deobfuscatedEnvironment");
-		System.out.println(this.devEnv);
 		this.worldInfo = new WorldInfo();
     	this.worldInfo.preInit(event);
     	this.config = new ConfigManager();
@@ -71,6 +68,14 @@ public class LogBot
     	this.logMinedBlocks = this.config.logMining;
     	this.logToDB = this.config.logToDB;
     	this.logToTextFiles = this.config.logToTextFiles;
+    	// Make sure the sqlite driver is available
+    	try {
+			Class.forName("org.sqlite.JDBC");
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+			System.out.println("Setting sqlErrorDBDisabled to true");
+			DBInsertThread.sqlDriverNotFound_databaseDisabled = true;
+		}
     }
     
     
@@ -251,7 +256,9 @@ public class LogBot
 		    	String worldName = this.worldInfo.getWorldName();
 	    		try {
 	    			long first = System.currentTimeMillis();
-	    			this.db.insertChest(serverName, worldName, chestPos.getX(), chestPos.getY(), chestPos.getZ(), contents);
+	    			DBInsertThread t = new DBInsertThread("chestThread");
+	    			t.insertChest(serverName, worldName, chestPos.getX(), chestPos.getY(), chestPos.getZ(), contents);
+	    			t.start();
 					long last = System.currentTimeMillis();
 					System.out.println("Chest write took " + (last-first) + "ms");
 				} catch (SQLException e) {
@@ -285,7 +292,6 @@ public class LogBot
 			minedList.add(pos);
 			
 			int playerY = (int)this.mc.thePlayer.posY;
-			
 			if (this.logToTextFiles){
             	writeFile(uName + "," + pos.getX() + "x," + pos.getY() + "y," + pos.getZ() + "z," + playerY + "y_player," + 
                           (int)(System.currentTimeMillis()/1000), 
@@ -297,7 +303,9 @@ public class LogBot
 		    	String worldName = this.worldInfo.getWorldName();
 		    	try {
 		    		long first = System.currentTimeMillis();
-					this.db.insertBlock(serverName, worldName, uName, pos.getX(), pos.getY(), pos.getZ(), true, "player_y=" + playerY);
+		    		DBInsertThread t = new DBInsertThread("blockThread");
+	    			t.insertBlock(serverName, worldName, uName, pos.getX(), pos.getY(), pos.getZ(), true, "player_y=" + playerY);
+	    			t.start();
 					long last = System.currentTimeMillis();
 					System.out.println("Block break write took " + (last-first) + "ms");
 				} catch (SQLException e) {
@@ -315,7 +323,7 @@ public class LogBot
      */
     @SubscribeEvent
 	public void onEntityJoinWorld(EntityJoinWorldEvent event) {
-    	if (this.db.isSQLDriverMissing()){
+    	if (DBInsertThread.isSQLDriverMissing()){
     		TextComponentString dMessage = new TextComponentString("\u00A7cSQLite driver couldn't be found! Is the sqlite-jdbc jar in your mods folder?");
 			this.mc.thePlayer.addChatMessage(dMessage);
 		}
