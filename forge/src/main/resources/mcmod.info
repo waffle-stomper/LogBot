@@ -1,0 +1,16 @@
+[
+{
+  "modid": "LogBot",
+  "name": "LogBot",
+  "description": "Automatic logging for chests etc.",
+  "version": "${version}",
+  "mcversion": "${mcversion}",
+  "url": "https://github.com/waffle-stomper/LogBot",
+  "updateUrl": "",
+  "authorList": ["waffle-stomper"],
+  "credits": "The Forge and FML guys, and the Ardbeg distillery",
+  "logoFile": "",
+  "screenshots": [],
+  "dependencies": []
+}
+]
