@@ -101,7 +101,7 @@ public class WorldInfo{
 		public IMessage onMessage(WorldIDPacket message, MessageContext ctx) {
 			lastResponse = System.currentTimeMillis();
 			worldID = message.getWorldID();
-			mc.thePlayer.addChatMessage(new TextComponentString(worldID + "@" + serverIP));
+			//mc.thePlayer.addChatMessage(new TextComponentString(worldID + "@" + serverIP));
 			return null;
 		}
 	}

@@ -1,0 +1,10 @@
+{
+  "homepage": "https://github.com/waffle-stomper/LogBot/releases",
+  "promos":{
+    "1.10-latest": "0.1.8",
+    "1.10-recommended": "0.1.8"
+  },
+  "1.10":{
+    "0.1.8": "Added update notifications"
+  }
+}
