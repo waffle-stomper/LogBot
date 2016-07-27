@@ -36,7 +36,7 @@ import net.minecraftforge.fml.common.gameevent.TickEvent.PlayerTickEvent;
 public class LogBot{
 	
     public static final String MODID = "LogBot";
-    public static final String VERSION = "0.1.8";
+    public static final String VERSION = "0.2.2";
     public static final String NAME = "LogBot";
     
     Minecraft mc;
@@ -308,18 +308,6 @@ public class LogBot{
 	    	//System.out.println("Block break put took " + (System.currentTimeMillis()-first) + "ms");
 		}
 		
-    }
-    
-    
-    /**
-     * This will generate a warning if the sqlite jar is missing
-     */
-    @SubscribeEvent
-	public void onEntityJoinWorld(EntityJoinWorldEvent event) {
-    	if (DBInsertThread.isSQLDriverMissing()){
-    		TextComponentString dMessage = new TextComponentString("\u00A7cSQLite driver couldn't be found! Is the sqlite-jdbc jar in your mods folder?");
-			this.mc.thePlayer.addChatMessage(dMessage);
-		}
     }
 }
 

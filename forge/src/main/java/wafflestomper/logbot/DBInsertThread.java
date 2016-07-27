@@ -69,7 +69,7 @@ public class DBInsertThread implements Runnable{
 		String logSubPath = "mods" + File.separator + "LogBot" + File.separator + serverName + File.separator + "log.sqlite";
 		Connection dbConnection = null;
 		dbConnection = DriverManager.getConnection("jdbc:sqlite:" + logSubPath);
-        System.out.println("Database opened succesfully!");
+        //System.out.println("Database opened succesfully!");
         return(dbConnection);
     }
 		
