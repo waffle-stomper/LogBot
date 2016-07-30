@@ -1,0 +1,7 @@
+This product includes the software developed by David Crawshaw.
+See LICENSE.zentus for details.
+
+This product includes the software developed by Taro L. Saito.
+See LICENSE.sqlite-jdbc for details.
+
+And also, NestedVM (Apache License Version 2.0) is used inside sqlite-
