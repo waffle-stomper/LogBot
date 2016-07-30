@@ -49,7 +49,7 @@ import net.minecraftforge.fml.common.gameevent.TickEvent.PlayerTickEvent;
 public class LogBot{
 	
     public static final String MODID = "LogBot";
-    public static final String VERSION = "0.2.5";
+    public static final String VERSION = "0.2.6";
     public static final String NAME = "LogBot";
     
     Minecraft mc;
@@ -164,10 +164,6 @@ public class LogBot{
     
     
     private String getDetailedItemName(ItemStack stack){
-    	//Interesting methods:
-    	//GuiScreen.renderToolTip
-    	//ItemStack.getToolTip
-    	
     	// We start with the registry name (e.g. minecraft.stone)
     	String assembledName = stack.getItem().getRegistryName().toString();
     	
@@ -333,10 +329,10 @@ public class LogBot{
     private class DroppedItem{
     	public int id;
     	public BlockPos sourcePos;
-    	public Item drop;
+    	public String drop;
     	public long createdTime;
     	
-    	public DroppedItem(int _id, BlockPos _sourcePos, Item _drop){
+    	public DroppedItem(int _id, BlockPos _sourcePos, String _drop){
     		this.createdTime = System.currentTimeMillis();
     		this.id = _id;
     		this.sourcePos = _sourcePos;
@@ -364,9 +360,6 @@ public class LogBot{
     }
     
     
-
-    
-    
     private HashMap<BlockPos, BlockDetail> miningBlocks = new HashMap();
     private HashMap<Integer, DroppedItem> newItems = new HashMap();
     
@@ -379,8 +372,6 @@ public class LogBot{
     		EntityItem i = (EntityItem)e;
     		ItemStack is = i.getEntityItem();
     		if (is == null){ return; }
-    		Item it = is.getItem();
-    		if (it == null){ return; }
     		
     		// Round down to convert to block-style co-ordinates
     		int posX = (int)Math.floor(e.posX);
@@ -389,7 +380,7 @@ public class LogBot{
     		BlockPos pos = new BlockPos(posX, posY, posZ);
     		
     		// Add the item to the list of recently dropped items
-    		this.newItems.put(e.getEntityId(), new DroppedItem(e.getEntityId(), pos, it));
+    		this.newItems.put(e.getEntityId(), new DroppedItem(e.getEntityId(), pos, getDetailedItemName(is)));
     		logger.debug("New item at [" + posX+ "," +  posY+ "," +  posZ + "]");
     	}
     }
@@ -413,9 +404,8 @@ public class LogBot{
     private long minerTickLastExecute = 0;
     @SubscribeEvent
     public void minerTick(PlayerTickEvent event){
-    	
-    	if (System.currentTimeMillis() - this.minerTickLastExecute < 5000){ return; } //rate limiting during testing
-    	this.minerTickLastExecute = System.currentTimeMillis();
+    	//if (System.currentTimeMillis() - this.minerTickLastExecute < 5000){ return; } //rate limiting during testing
+    	//this.minerTickLastExecute = System.currentTimeMillis(); logger.warn("minerTick() IS RATE LIMITED! DISABLE THIS LIMITING ASAP OR THE ALGORITHM WON'T WORK CORRECTLY!");
     	
     	// Update items in newItems if they've changed (since almost everything seems to spawn as stone)
     	if (this.mc.theWorld == null){ return; }
@@ -428,19 +418,16 @@ public class LogBot{
 				if (this.newItems.containsKey(id)){
 					DroppedItem originalItem = this.newItems.get(id);
 					EntityItem ei = (EntityItem) e;
-					
-					logger.warn("Alternate label: " + ei.getEntityItem().getTooltip(this.mc.thePlayer, false).toString());
-					
-					Item latestItem = ei.getEntityItem().getItem();
+					ItemStack latestStack = ei.getEntityItem();
 					int stackSize = ei.getEntityItem().stackSize;
+					String latestName = getDetailedItemName(latestStack);
 					//TODO: Use a faster comparison method?
-					if (!latestItem.getRegistryName().equals(originalItem.drop.getRegistryName())){
+					if (!latestName.equals(originalItem.drop)){
 						logger.debug("id "+e.getEntityId() + " changed from " +
-								originalItem.drop.getRegistryName() + " to " +
-								latestItem.getRegistryName() + "x" + stackSize +", time: " + 
+								originalItem.drop + " to " +
+								latestName + "x" + stackSize +", time: " + 
 								(System.currentTimeMillis()-originalItem.createdTime) + "ms" );
-						this.newItems.put(originalItem.id, new DroppedItem(id, originalItem.sourcePos, latestItem));
-						logger.warn("Processed name of new item: " + getDetailedItemName(ei.getEntityItem()));
+						this.newItems.put(originalItem.id, new DroppedItem(id, originalItem.sourcePos, latestName));
 					}
 				}
     		}
@@ -481,7 +468,6 @@ public class LogBot{
     			continue;
     		}
     		
-    		
     		// Collect drops for this block, making sure that all of them have had at least 100ms of settling time
     		logger.debug("Collecting items related to " + currBlock.toString());
     		ArrayList<DroppedItem> dropMatches = new ArrayList<DroppedItem>();
@@ -495,20 +481,19 @@ public class LogBot{
         		}
         		if (dropMatches.isEmpty()){
         			dropMatches.add(currDrop);
-        			logger.debug("adding " + currDrop.id + "[" + currDrop.drop.getRegistryName() + "]");
+        			logger.debug("adding " + currDrop.id + "[" + currDrop.drop + "]");
         		}
         		else{
         			// Make sure the first item in the list is the same as the new one
-        			if (currDrop.drop.getRegistryName().equals(dropMatches.get(0).drop.getRegistryName())){
+        			if (currDrop.drop.equals(dropMatches.get(0).drop)){
         				dropMatches.add(currDrop);
-        				logger.debug("adding " + currDrop.id + " [" + currDrop.drop.getRegistryName() + "]");
+        				logger.debug("adding " + currDrop.id + " [" + currDrop.drop + "]");
         			}
         			else{
-        				logger.warn("Mismatching drop found at " + currDrop.sourcePos.toString()+ " [" + currDrop.drop.getRegistryName() + "]");
+        				logger.warn("Mismatching drop found at " + currDrop.sourcePos.toString()+ " [" + currDrop.drop + "]");
         			}
         		}
     		}
-    		
     		
     		// If we've successfully collected the drops for this block, add it to the database and remove it and the drops from their respective lists
     		if (!dropMatches.isEmpty()){
@@ -516,7 +501,7 @@ public class LogBot{
     			String serverName = this.worldInfo.getSanitizedServerIP();
     			String worldName = this.worldInfo.getWorldName();
     			String blockName = currBlock.blockName;
-    			String dropName = firstDrop.drop.getRegistryName().toString();
+    			String dropName = firstDrop.drop;
     			int dropCount = dropMatches.size();
     			int x = currBlock.pos.getX();
     			int y = currBlock.pos.getY();
@@ -528,7 +513,7 @@ public class LogBot{
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
-	    			this.mc.thePlayer.addChatMessage(new TextComponentString("DB added: " + blockName +  " dropped "  + dropCount + " x " + dropName));
+	    			//this.mc.thePlayer.addChatMessage(new TextComponentString("DB added: " + blockName +  " dropped "  + dropCount + " x " + dropName));
     			}
     			
     			blockIter.remove();
