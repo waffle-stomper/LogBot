@@ -9,6 +9,7 @@ import java.sql.Statement;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.util.text.TextComponentString;
 
 public class DBInsertThread implements Runnable{
 
@@ -22,6 +23,8 @@ public class DBInsertThread implements Runnable{
 								 	                 "TIMESTAMP	  	DATETIME 	DEFAULT CURRENT_TIMESTAMP, " +	
 								 	                 "WORLDNAME     TEXT    	NOT NULL, " + 
 								 	                 "BLOCKTYPE     TEXT     	NOT NULL, " +
+								 	                 "DROPTYPE		TEXT     	NOT NULL, " +
+								 	                 "DROPCOUNT		INTEGER     NOT NULL, " + 
 								 	                 "X             INTEGER     NOT NULL, " + 
 								 	                 "Y             INTEGER     NOT NULL, " + 
 								 	                 "Z             INTEGER		NOT NULL, " + 
@@ -34,7 +37,9 @@ public class DBInsertThread implements Runnable{
 								 	                "X				INTEGER		NOT NULL, " + 
 								                    "Y				INTEGER		NOT NULL, " + 
 								 	                "Z				INTEGER		NOT NULL, " + 
-								 	                "CONTENTS		TEXT)"; 
+								 	                "MINECART		INTEGER		NOT NULL, " + 
+								 	                "CONTENTS		TEXT, " +
+								 	                "NOTES			TEXT)"; 
 	private static final DBInsertThread instance;
 	static{
 		try{
@@ -53,6 +58,14 @@ public class DBInsertThread implements Runnable{
 	
 	public synchronized static boolean isSQLDriverMissing(){
 		return(sqlDriverNotFound_databaseDisabled);
+	}
+	
+	
+	private static void addChatError(String error){
+		Minecraft mc = Minecraft.getMinecraft();
+		if (mc.theWorld != null){
+			mc.thePlayer.addChatComponentMessage(new TextComponentString("\u00A7c" + error));
+		}
 	}
 	
 	
@@ -77,20 +90,23 @@ public class DBInsertThread implements Runnable{
 	private static void insertBlock(RecordBlock block, Connection c){
 		PreparedStatement prep = null;
 		try {
-			prep = c.prepareStatement("INSERT INTO BLOCKS (TIMESTAMP, WORLDNAME, BLOCKTYPE, X, Y, Z, MINED, NOTES) " +
-					 	    		  "VALUES (?, ?, ?, ?, ?, ?, ?, ?);");
+			prep = c.prepareStatement("INSERT INTO BLOCKS (TIMESTAMP, WORLDNAME, BLOCKTYPE, DROPTYPE, DROPCOUNT, X, Y, Z, MINED, NOTES) " +
+					 	    		  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);");
 			prep.setString(1, block.timestamp);
 			prep.setString(2, block.worldName);
 			prep.setString(3, block.blockType);
-			prep.setInt(4, block.x);
-			prep.setInt(5, block.y);
-			prep.setInt(6, block.z);
-			prep.setInt(7, block.mined?1:0);
-			prep.setString(8, block.notes);
+			prep.setString(4, block.dropType);
+			prep.setInt(5, block.dropCount);
+			prep.setInt(6, block.x);
+			prep.setInt(7, block.y);
+			prep.setInt(8, block.z);
+			prep.setInt(9, block.mined?1:0);
+			prep.setString(10, block.notes);
 			prep.execute();
 			prep.close();
 		} catch (SQLException e) {
 			e.printStackTrace();
+			addChatError("Database block insert failed!");
 		}
 	}
 	
@@ -98,18 +114,21 @@ public class DBInsertThread implements Runnable{
 	private static void insertChest(RecordChest chest, Connection c){
 		PreparedStatement prep = null;
 		try {
-			prep = c.prepareStatement("INSERT INTO CHESTS (TIMESTAMP, WORLDNAME, X, Y, Z, CONTENTS) " + 
-									  "VALUES (?, ?, ?, ?, ?, ?);");
+			prep = c.prepareStatement("INSERT INTO CHESTS (TIMESTAMP, WORLDNAME, X, Y, Z, MINECART, CONTENTS, NOTES) " + 
+									  "VALUES (?, ?, ?, ?, ?, ?, ?, ?);");
 			prep.setString(1, chest.timestamp);
 			prep.setString(2, chest.worldName);
 			prep.setInt(3, chest.x);
 			prep.setInt(4, chest.y);
 			prep.setInt(5, chest.z);
-			prep.setString(6, chest.contents);
+			prep.setInt(6, chest.minecartChest?1:0);
+			prep.setString(7, chest.contents);
+			prep.setString(8, chest.notes);
 			prep.execute();
 			prep.close();
 		} catch (SQLException e) {
 			e.printStackTrace();
+			addChatError("Database chest insert failed!");
 		}
 	}
 	
@@ -117,6 +136,13 @@ public class DBInsertThread implements Runnable{
 	@Override
 	public void run() {
 		System.out.println("Starting DB insert thread!");
+		try {
+			Class.forName("org.sqlite.JDBC");
+		} catch (ClassNotFoundException e1) {
+			e1.printStackTrace();
+			setSQLDriverMissing();
+			return;
+		}
 		if (!isSQLDriverMissing()){
 			while(!terminate){
 				if(queue.isEmpty()){
@@ -164,7 +190,7 @@ public class DBInsertThread implements Runnable{
 					    
 					} catch (SQLException e) {
 						e.printStackTrace();
-						System.out.println("Database insert failed!");
+						addChatError("Database insert failed!");
 					}
 					//System.out.println("Inserted " + insertCount + " records in " + (System.currentTimeMillis()-startTime) + "ms");
 				}

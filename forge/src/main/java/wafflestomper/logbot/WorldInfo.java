@@ -1,5 +1,8 @@
 package wafflestomper.logbot;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import io.netty.buffer.ByteBuf;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.text.TextComponentString;
@@ -26,6 +29,7 @@ public class WorldInfo{
 	private static String worldID;
 	private static String serverIP;
 	private static Minecraft mc;
+	private static final Logger logger = LogManager.getLogger("LogBot:WorldInfo");
 
 	
 	public void preInit(FMLPreInitializationEvent event) {
@@ -138,7 +142,7 @@ public class WorldInfo{
 				ByteBufUtils.writeUTF8String(buf, worldID);
 			}
 			else{
-				System.out.println("World ID Is null");
+				logger.warn("World ID Is null");
 			}
 		}
 	}

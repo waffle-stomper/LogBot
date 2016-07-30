@@ -8,11 +8,23 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map.Entry;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import net.minecraft.block.Block;
+import net.minecraft.block.properties.IProperty;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiChest;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.item.EntityItem;
+import net.minecraft.entity.item.EntityMinecartChest;
+import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemWrittenBook;
 import net.minecraft.launchwrapper.Launch;
@@ -20,6 +32,8 @@ import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.text.TextComponentString;
+import net.minecraft.util.text.TextFormatting;
+import net.minecraft.world.WorldType;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent.BreakSpeed;
@@ -28,7 +42,6 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.Event;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.PlayerTickEvent;
 
@@ -36,7 +49,7 @@ import net.minecraftforge.fml.common.gameevent.TickEvent.PlayerTickEvent;
 public class LogBot{
 	
     public static final String MODID = "LogBot";
-    public static final String VERSION = "0.2.2";
+    public static final String VERSION = "0.2.5";
     public static final String NAME = "LogBot";
     
     Minecraft mc;
@@ -46,6 +59,7 @@ public class LogBot{
     private ConfigManager config;
     private boolean logMasterEnable = true;
     private DBInsertThread db = new DBInsertThread();
+    private static final Logger logger = LogManager.getLogger("LogBot");
     
     
     @EventHandler
@@ -117,8 +131,8 @@ public class LogBot{
 				}
 				catch (IOException e){
 					failedFlag = true;
-					System.out.println(e.getMessage());
-					System.out.println("Write failed!");
+					logger.error(e.getMessage());
+					logger.error("Write failed!");
 					return false;
 				}
 				finally{
@@ -127,8 +141,8 @@ public class LogBot{
 			} 
 			catch (IOException e) {
 				failedFlag = true;
-				System.out.println(e.getMessage());
-				System.out.println("Write failed!");
+				logger.error(e.getMessage());
+				logger.error("Write failed!");
 				return false;
 			}
 		}
@@ -137,22 +151,49 @@ public class LogBot{
 			this.mc.thePlayer.addChatMessage(new TextComponentString("\u00A7cWRITING TO DISK FAILED!"));
 			return false;
 		}		
-		//System.out.println("Text file write took " + (System.currentTimeMillis()-methodStart) + "ms");
+		logger.debug("Text file write took " + (System.currentTimeMillis()-methodStart) + "ms");
 		return true;
 	}
     
     
     public boolean writeFile(String toWrite, String fileName){
-    	ArrayList<String> temp = new ArrayList();
+    	ArrayList<String> temp = new ArrayList<String>();
     	temp.add(toWrite);
     	return(writeFile(temp, fileName));
     }
     
     
+    private String getDetailedItemName(ItemStack stack){
+    	//Interesting methods:
+    	//GuiScreen.renderToolTip
+    	//ItemStack.getToolTip
+    	
+    	// We start with the registry name (e.g. minecraft.stone)
+    	String assembledName = stack.getItem().getRegistryName().toString();
+    	
+    	// Get the tooltip and process it
+    	String toolTip = "|";
+    	List<String> tipList = stack.getTooltip(this.mc.thePlayer, false);
+    	for (String tipLine : tipList){
+    		if (tipLine.startsWith("When in main hand")){ 
+    			break; 
+    		}
+    		if (!toolTip.equals("|")){
+    			toolTip += " ";
+    		}
+    		toolTip += tipLine.replaceAll("\u00A7[a-fA-Fk-oK-Or0-9]", "");
+    	}
+    	
+    	assembledName += toolTip;
+    	return(assembledName.replaceAll(",", "\\\\,"));
+    }
+    
+    
     /* This is a dirty hack, but I'm a terrible person, so what do you expect? */    
     private boolean chestWasOpen = false;
-    private List<ItemStack> cachedInv = new ArrayList();
+    private List<ItemStack> cachedInv = new ArrayList<ItemStack>();
     private BlockPos chestPos;
+    private boolean minecartChest = false;
     @SubscribeEvent
     public void playerTick(PlayerTickEvent event){
     	if (!this.logMasterEnable){
@@ -162,8 +203,17 @@ public class LogBot{
     		// Get the position of the chest we're pointing at
     		GuiChest chestGui = (GuiChest)this.mc.currentScreen;
     		RayTraceResult currMOP = this.mc.objectMouseOver;
+    		this.minecartChest = false;
     		if (currMOP != null){
     			chestPos = currMOP.getBlockPos();
+    			if (chestPos == null && currMOP.entityHit != null && currMOP.entityHit instanceof EntityMinecartChest){
+    				chestPos = currMOP.entityHit.getPosition();
+    				this.minecartChest = true;
+    			}
+    			if (chestPos == null){
+    				logger.error("Couldn't get chest pos");
+    				this.mc.thePlayer.addChatMessage(new TextComponentString("\u00A7cCouldn't get chest pos"));
+    			}
     		}
     		
     		List<ItemStack> chestInv = chestGui.inventorySlots.getInventory();
@@ -203,26 +253,7 @@ public class LogBot{
     		for(int i=0; i<cachedInv.size(); i++){
     			ItemStack currStack = cachedInv.get(i);
     			if (currStack != null){
-    				
-    				if (currStack.getItem() instanceof ItemWrittenBook){
-    					if (currStack.hasTagCompound()){
-    						NBTTagCompound tags = currStack.getTagCompound();
-    						String bookDetails = "";
-    						if (!tags.hasKey("title", 10)){
-    				            String title = tags.getTag("title").toString();
-    				            if (!title.isEmpty()){
-    				            	bookDetails = title + " ";
-    				            }
-    				        }
-    						if (!tags.hasKey("author", 10)){
-    	    					bookDetails = bookDetails + "by " + tags.getTag("author").toString();
-    	    				}
-    						contents = contents + String.valueOf(currStack.stackSize) + "x" + "Written Book" + " [" + bookDetails + "]";
-    					}
-    				}
-    				else{
-    					contents = contents + String.valueOf(currStack.stackSize) + "x" + currStack.getDisplayName();
-    				}
+    				contents = contents + String.valueOf(currStack.stackSize) + "x" + getDetailedItemName(currStack);
     			}
     			if  (i < cachedInv.size()-1){
     				contents = contents + ",";
@@ -247,7 +278,7 @@ public class LogBot{
 		    	String worldName = this.worldInfo.getWorldName();
 		    	long first = System.currentTimeMillis();
 		    	try {
-					this.db.queue.put(new RecordChest(serverName, worldName, chestPos.getX(), chestPos.getY(), chestPos.getZ(), contents));
+					this.db.queue.put(new RecordChest(serverName, worldName, chestPos.getX(), chestPos.getY(), chestPos.getZ(), this.minecartChest, contents, ""));
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -265,50 +296,247 @@ public class LogBot{
     	BlockPos pos = event.getPos();
     }
     
-
-    // An alternate event is PlayerInteractEvent$LeftClickBlock
-    List<BlockPos> minedList = new ArrayList();
-    @SubscribeEvent
-    public void breakingBlock(BreakSpeed event){
-    	if (!this.logMasterEnable || !this.config.logMinedBlocks){
-    		return;
+    
+    /*
+     * Here's a rough guide to the mine logging process:
+     * User 'hits/left clicks' a block, the block is added to watch list with a timestamp
+     * If the block does disappear, it's considered mined and it's added to a list while we wait for the drop
+     * While all of this is going on, we're keeping track of new entites, specifically items and their initial position.
+     * We wait for some settling time to see if the new items change (all blocks are spawned as stone and have their real attributes swapped in later)
+     * Once we are sure that the item has settled on its final form, we compare its initial position with the positions and of all recently mined blocks
+     * If eveything matches up, we can finally add it to the database and remove the item and block position from the lists
+     */
+    
+    private class BlockDetail{
+    	public BlockPos pos;
+    	public String blockName;
+    	public long hitTime = -1; // When the block was last hit
+    	public long airTime = -1; // When the block became air (i.e. was finished mining)
+    	
+    	public BlockDetail(BlockPos _pos, String _blockName, long _hitTime, long _airTime){
+    		this.pos = _pos;
+    		this.blockName = _blockName;
+    		this.hitTime = _hitTime;
+    		this.airTime = _airTime;
     	}
+    	
+    	public boolean hasAirTime(){ 
+			return(this.airTime > -1); 
+		}
+    	
+    	public String toString(){
+    		return(this.blockName + "@" + this.pos.toString());
+    	}
+    }
+    
+    
+    private class DroppedItem{
+    	public int id;
+    	public BlockPos sourcePos;
+    	public Item drop;
+    	public long createdTime;
+    	
+    	public DroppedItem(int _id, BlockPos _sourcePos, Item _drop){
+    		this.createdTime = System.currentTimeMillis();
+    		this.id = _id;
+    		this.sourcePos = _sourcePos;
+    		this.drop = _drop;
+    	}
+    }
+    
+    
+    private <T extends Comparable<T>> String getDetailedBlockName(BlockPos blockpos){
+    	IBlockState iblockstate = this.mc.theWorld.getBlockState(blockpos);
+
+    	if (this.mc.theWorld.getWorldType() != WorldType.DEBUG_WORLD){
+    		iblockstate = iblockstate.getActualState(this.mc.theWorld, blockpos);
+    	}
+
+    	String assembledName = String.valueOf(Block.REGISTRY.getNameForObject(iblockstate.getBlock()));
+
+    	for (Entry < IProperty<?>, Comparable<? >> entry : iblockstate.getProperties().entrySet()){
+    		IProperty<T> iproperty = (IProperty)entry.getKey();
+            T t = (T)entry.getValue();
+            String s = iproperty.getName(t);
+    		assembledName += "|" + iproperty.getName() + ":" + entry.getValue();
+    	}
+    	return(assembledName);
+    }
+    
+    
+
+    
+    
+    private HashMap<BlockPos, BlockDetail> miningBlocks = new HashMap();
+    private HashMap<Integer, DroppedItem> newItems = new HashMap();
+    
+    
+    @SubscribeEvent
+    public void entityJoinWorld(EntityJoinWorldEvent event){
+    	Entity e = event.getEntity();
+    	if (e == null){ return; }
+    	if (e instanceof EntityItem){
+    		EntityItem i = (EntityItem)e;
+    		ItemStack is = i.getEntityItem();
+    		if (is == null){ return; }
+    		Item it = is.getItem();
+    		if (it == null){ return; }
+    		
+    		// Round down to convert to block-style co-ordinates
+    		int posX = (int)Math.floor(e.posX);
+    		int posY = (int)Math.floor(e.posY);
+    		int posZ = (int)Math.floor(e.posZ);
+    		BlockPos pos = new BlockPos(posX, posY, posZ);
+    		
+    		// Add the item to the list of recently dropped items
+    		this.newItems.put(e.getEntityId(), new DroppedItem(e.getEntityId(), pos, it));
+    		logger.debug("New item at [" + posX+ "," +  posY+ "," +  posZ + "]");
+    	}
+    }
+    
+    
+    @SubscribeEvent
+    public void userHitBlock(PlayerInteractEvent.LeftClickBlock event){
+    	if (!this.config.logMinedBlocks){ return; }
     	BlockPos pos = event.getPos();
-    	Block currBlock = this.mc.theWorld.getBlockState(pos).getBlock();
-		String uName = currBlock.getUnlocalizedName();
-		
-		if (this.config.onlyLogOres){
-			if (!uName.startsWith("tile.ore") && !uName.equals("tile.netherquartz")){
-				return;
-			}
-		}
-		
-		if (minedList.contains(pos)){
-			return;
-		}
-		minedList.add(pos);
-		
-		int playerY = (int)this.mc.thePlayer.posY;
-		if (this.config.logToTextFiles){
-        	writeFile(uName + "," + pos.getX() + "x," + pos.getY() + "y," + pos.getZ() + "z," + playerY + "y_player," + 
-                      (int)(System.currentTimeMillis()/1000), 
-                      this.worldInfo.getWorldName() + ".txt");
-        }
-		
-		if (this.config.logToDB){
-	    	String serverName = this.worldInfo.getSanitizedServerIP();
-	    	String worldName = this.worldInfo.getWorldName();
-	    	
-	    	long first = System.currentTimeMillis();
-	    	try {
-				this.db.queue.put(new RecordBlock(serverName, worldName, uName, pos.getX(), pos.getY(), pos.getZ(), true, "player_y=" + playerY));
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-	    	//System.out.println("Block break put took " + (System.currentTimeMillis()-first) + "ms");
-		}
-		
+    	if (pos != null){
+    		Block block = this.mc.theWorld.getBlockState(pos).getBlock();
+	    	if (block != null){
+	    		if (block.getRegistryName().toString().endsWith("_ore") == false && this.config.onlyLogOres){ return; }
+	    		long currTime = System.currentTimeMillis();
+	    		miningBlocks.put(pos, new BlockDetail(pos, getDetailedBlockName(pos), currTime, -1));
+	    	}
+    	}
+    }
+    
+    
+    private long minerTickLastExecute = 0;
+    @SubscribeEvent
+    public void minerTick(PlayerTickEvent event){
+    	
+    	if (System.currentTimeMillis() - this.minerTickLastExecute < 5000){ return; } //rate limiting during testing
+    	this.minerTickLastExecute = System.currentTimeMillis();
+    	
+    	// Update items in newItems if they've changed (since almost everything seems to spawn as stone)
+    	if (this.mc.theWorld == null){ return; }
+    	List entityList = mc.theWorld.loadedEntityList;
+    	for (Object o : entityList){
+    		Entity e = (Entity) o;
+    		if (e instanceof EntityItem) {
+    			int id = e.getEntityId();
+    			BlockPos pos = e.getPosition();
+				if (this.newItems.containsKey(id)){
+					DroppedItem originalItem = this.newItems.get(id);
+					EntityItem ei = (EntityItem) e;
+					
+					logger.warn("Alternate label: " + ei.getEntityItem().getTooltip(this.mc.thePlayer, false).toString());
+					
+					Item latestItem = ei.getEntityItem().getItem();
+					int stackSize = ei.getEntityItem().stackSize;
+					//TODO: Use a faster comparison method?
+					if (!latestItem.getRegistryName().equals(originalItem.drop.getRegistryName())){
+						logger.debug("id "+e.getEntityId() + " changed from " +
+								originalItem.drop.getRegistryName() + " to " +
+								latestItem.getRegistryName() + "x" + stackSize +", time: " + 
+								(System.currentTimeMillis()-originalItem.createdTime) + "ms" );
+						this.newItems.put(originalItem.id, new DroppedItem(id, originalItem.sourcePos, latestItem));
+						logger.warn("Processed name of new item: " + getDetailedItemName(ei.getEntityItem()));
+					}
+				}
+    		}
+    	}
+    	
+    	// Clean up stale items
+    	for(Iterator<HashMap.Entry<Integer,DroppedItem>>it = this.newItems.entrySet().iterator(); it.hasNext();){
+    		HashMap.Entry<Integer, DroppedItem> entry = it.next();
+    		if (System.currentTimeMillis() - entry.getValue().createdTime > 30000){
+    			it.remove();
+    		}
+    	}
+    	
+    	// Go through hit blocks looking for any that have timed, completed mining, or have mature drops
+    	for(Iterator<HashMap.Entry<BlockPos,BlockDetail>>blockIter = this.miningBlocks.entrySet().iterator(); blockIter.hasNext();){
+    		HashMap.Entry<BlockPos,BlockDetail> blockEntry = blockIter.next();
+    		BlockDetail currBlock = blockEntry.getValue();
+    		
+    		// Remove blocks that are 30 seconds (or older) from the list
+    		if (System.currentTimeMillis() - currBlock.hitTime > 30000){
+    			logger.debug("Removing stale entry [" + currBlock.toString() + "] from miningBlocks");
+    			blockIter.remove();
+    			continue;
+    		}
+    		
+    		// If the block has become air, set airTime. Otherwise make sure the airTime is cleared (in case the block break was erroneous and it's re-appeared)
+    		Block b = this.mc.theWorld.getBlockState(currBlock.pos).getBlock();
+    		if (b.equals(Blocks.AIR)){
+    			if (!currBlock.hasAirTime()){
+	    			logger.debug("It looks like block " + currBlock.pos + " has become air");
+	    			currBlock.airTime = System.currentTimeMillis();
+	    			continue;
+    			}
+    		}
+    		else if (currBlock.hasAirTime()){
+    			logger.debug("It looks like block " + currBlock.pos + " has become solid again");
+    			currBlock.airTime = -1;
+    			continue;
+    		}
+    		
+    		
+    		// Collect drops for this block, making sure that all of them have had at least 100ms of settling time
+    		logger.debug("Collecting items related to " + currBlock.toString());
+    		ArrayList<DroppedItem> dropMatches = new ArrayList<DroppedItem>();
+    		for(Iterator<HashMap.Entry<Integer,DroppedItem>>dropIter = this.newItems.entrySet().iterator(); dropIter.hasNext();){
+        		HashMap.Entry<Integer,DroppedItem> dropEntry = dropIter.next();
+        		DroppedItem currDrop = dropEntry.getValue();
+        		if (!currBlock.pos.equals(currDrop.sourcePos)){ continue; }
+        		if (System.currentTimeMillis() - currDrop.createdTime < 100){
+        			dropMatches.clear();
+        			break; 
+        		}
+        		if (dropMatches.isEmpty()){
+        			dropMatches.add(currDrop);
+        			logger.debug("adding " + currDrop.id + "[" + currDrop.drop.getRegistryName() + "]");
+        		}
+        		else{
+        			// Make sure the first item in the list is the same as the new one
+        			if (currDrop.drop.getRegistryName().equals(dropMatches.get(0).drop.getRegistryName())){
+        				dropMatches.add(currDrop);
+        				logger.debug("adding " + currDrop.id + " [" + currDrop.drop.getRegistryName() + "]");
+        			}
+        			else{
+        				logger.warn("Mismatching drop found at " + currDrop.sourcePos.toString()+ " [" + currDrop.drop.getRegistryName() + "]");
+        			}
+        		}
+    		}
+    		
+    		
+    		// If we've successfully collected the drops for this block, add it to the database and remove it and the drops from their respective lists
+    		if (!dropMatches.isEmpty()){
+    			DroppedItem firstDrop = dropMatches.get(0);
+    			String serverName = this.worldInfo.getSanitizedServerIP();
+    			String worldName = this.worldInfo.getWorldName();
+    			String blockName = currBlock.blockName;
+    			String dropName = firstDrop.drop.getRegistryName().toString();
+    			int dropCount = dropMatches.size();
+    			int x = currBlock.pos.getX();
+    			int y = currBlock.pos.getY();
+    			int z = currBlock.pos.getZ();
+    			
+    			if (this.config.logToDB){
+	    			try {
+						this.db.queue.put(new RecordBlock(serverName, worldName, blockName, dropName, dropCount, x, y, z, true, ""));
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+	    			this.mc.thePlayer.addChatMessage(new TextComponentString("DB added: " + blockName +  " dropped "  + dropCount + " x " + dropName));
+    			}
+    			
+    			blockIter.remove();
+    			for(DroppedItem d : dropMatches){
+    				this.newItems.remove(d.id);
+    			}
+    		}
+    		
+    	}
     }
 }
-
-
