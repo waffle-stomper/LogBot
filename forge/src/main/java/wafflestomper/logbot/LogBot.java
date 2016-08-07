@@ -24,19 +24,14 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.item.EntityMinecartChest;
 import net.minecraft.init.Blocks;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.ItemWrittenBook;
 import net.minecraft.launchwrapper.Launch;
-import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.text.TextComponentString;
-import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.WorldType;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent.BreakSpeed;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
@@ -44,22 +39,23 @@ import net.minecraftforge.fml.common.Mod.EventHandler;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.PlayerTickEvent;
+import wafflestomper.wafflecore.WaffleCore;
 
 @Mod(modid = LogBot.MODID, version = LogBot.VERSION, name = LogBot.NAME, updateJSON = "https://raw.githubusercontent.com/waffle-stomper/LogBot/master/update.json")
 public class LogBot{
 	
     public static final String MODID = "LogBot";
-    public static final String VERSION = "0.2.6";
+    public static final String VERSION = "0.2.7";
     public static final String NAME = "LogBot";
     
     Minecraft mc;
     private boolean devEnv = true;
     private KeyBindings keybindings;
-    private WorldInfo worldInfo;
     private ConfigManager config;
     private boolean logMasterEnable = true;
     private DBInsertThread db = new DBInsertThread();
     private static final Logger logger = LogManager.getLogger("LogBot");
+    private static WaffleCore wafflecore;
     
     
     @EventHandler
@@ -69,8 +65,7 @@ public class LogBot{
 		MinecraftForge.EVENT_BUS.register(this);
 		this.keybindings = new KeyBindings(this);
 		this.devEnv = (Boolean)Launch.blackboard.get("fml.deobfuscatedEnvironment");
-		this.worldInfo = new WorldInfo();
-    	this.worldInfo.preInit(event);
+		wafflecore = WaffleCore.INSTANCE;
     	this.config = new ConfigManager();
     	this.config.preInit(event);
     	// Make sure the sqlite driver is available
@@ -105,7 +100,7 @@ public class LogBot{
 		if (basepath.endsWith(".")){
 			basepath = basepath.substring(0, basepath.length()-2);
 		}
-		String serverIP = this.worldInfo.getSanitizedServerIP();
+		String serverIP = wafflecore.worldInfo.getNiceServerIP();
 		File serverPath = new File(basepath, "mods" + File.separator + "LogBot" + File.separator + serverIP);
 		if (!serverPath.exists()) serverPath.mkdirs();
 		File filePath = new File(serverPath, fileName);
@@ -270,8 +265,8 @@ public class LogBot{
     		
     		// Write to DB
     		if (this.config.logToDB){
-	    		String serverName = this.worldInfo.getSanitizedServerIP();
-		    	String worldName = this.worldInfo.getWorldName();
+	    		String serverName = wafflecore.worldInfo.getNiceServerIP();
+		    	String worldName = wafflecore.worldInfo.getWorldName();
 		    	long first = System.currentTimeMillis();
 		    	try {
 					this.db.queue.put(new RecordChest(serverName, worldName, chestPos.getX(), chestPos.getY(), chestPos.getZ(), this.minecartChest, contents, ""));
@@ -401,6 +396,25 @@ public class LogBot{
     }
     
     
+    private void addBlockToDB(BlockDetail block, String dropName, int dropCount){
+    	String serverName = wafflecore.worldInfo.getNiceServerIP();
+		String worldName = wafflecore.worldInfo.getWorldName();
+		String blockName = block.blockName;
+		int x = block.pos.getX();
+		int y = block.pos.getY();
+		int z = block.pos.getZ();
+		
+		if (this.config.logToDB){
+			try {
+				logger.debug("Adding " + block.toString() + " to database");
+				this.db.queue.put(new RecordBlock(serverName, worldName, blockName, dropName, dropCount, x, y, z, true, ""));
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+    }
+    
+    
     private long minerTickLastExecute = 0;
     @SubscribeEvent
     public void minerTick(PlayerTickEvent event){
@@ -441,14 +455,17 @@ public class LogBot{
     		}
     	}
     	
-    	// Go through hit blocks looking for any that have timed, completed mining, or have mature drops
+    	// Go through hit blocks looking for any that have timed out, completed mining, or have mature drops
     	for(Iterator<HashMap.Entry<BlockPos,BlockDetail>>blockIter = this.miningBlocks.entrySet().iterator(); blockIter.hasNext();){
     		HashMap.Entry<BlockPos,BlockDetail> blockEntry = blockIter.next();
     		BlockDetail currBlock = blockEntry.getValue();
     		
-    		// Remove blocks that are 30 seconds (or older) from the list
-    		if (System.currentTimeMillis() - currBlock.hitTime > 30000){
+    		// Remove blocks that are 30 seconds (or older) from the list, or are not in a loaded chunk, adding them if they were last air
+    		if (System.currentTimeMillis() - currBlock.hitTime > 30000 || !this.mc.theWorld.isBlockLoaded(currBlock.pos)){
     			logger.debug("Removing stale entry [" + currBlock.toString() + "] from miningBlocks");
+    			if (currBlock.hasAirTime()){
+    				this.addBlockToDB(currBlock, "", 0);
+    			}
     			blockIter.remove();
     			continue;
     		}
@@ -498,24 +515,9 @@ public class LogBot{
     		// If we've successfully collected the drops for this block, add it to the database and remove it and the drops from their respective lists
     		if (!dropMatches.isEmpty()){
     			DroppedItem firstDrop = dropMatches.get(0);
-    			String serverName = this.worldInfo.getSanitizedServerIP();
-    			String worldName = this.worldInfo.getWorldName();
-    			String blockName = currBlock.blockName;
     			String dropName = firstDrop.drop;
     			int dropCount = dropMatches.size();
-    			int x = currBlock.pos.getX();
-    			int y = currBlock.pos.getY();
-    			int z = currBlock.pos.getZ();
-    			
-    			if (this.config.logToDB){
-	    			try {
-						this.db.queue.put(new RecordBlock(serverName, worldName, blockName, dropName, dropCount, x, y, z, true, ""));
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-	    			//this.mc.thePlayer.addChatMessage(new TextComponentString("DB added: " + blockName +  " dropped "  + dropCount + " x " + dropName));
-    			}
-    			
+    			this.addBlockToDB(currBlock, dropName, dropCount);
     			blockIter.remove();
     			for(DroppedItem d : dropMatches){
     				this.newItems.remove(d.id);

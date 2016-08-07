@@ -95,7 +95,12 @@ public class DBInsertThread implements Runnable{
 			prep.setString(1, block.timestamp);
 			prep.setString(2, block.worldName);
 			prep.setString(3, block.blockType);
-			prep.setString(4, block.dropType);
+			if (block.dropCount <= 0){
+				prep.setString(4, "");
+			}
+			else{
+				prep.setString(4, block.dropType);
+			}
 			prep.setInt(5, block.dropCount);
 			prep.setInt(6, block.x);
 			prep.setInt(7, block.y);
