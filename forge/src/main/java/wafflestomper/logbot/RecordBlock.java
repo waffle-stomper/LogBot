@@ -1,10 +1,34 @@
 package wafflestomper.logbot;
 
-public class RecordBlock extends Record{
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.util.text.TextComponentString;
+
+public class RecordBlock implements Record{
 	
+	public static final String createTableStatement =  	"CREATE TABLE IF NOT EXISTS BLOCKS " +
+														"(ID			INTEGER		PRIMARY KEY ASC, " +
+														"TIMESTAMP		DATETIME 	DEFAULT CURRENT_TIMESTAMP, " +	
+														"WORLDNAME		TEXT    	NOT NULL, " + 
+														"BLOCKTYPE		TEXT     	NOT NULL, " +
+														"DROPS			TEXT     	NOT NULL, " +
+														"X				INTEGER     NOT NULL, " + 
+														"Y				INTEGER     NOT NULL, " + 
+														"Z				INTEGER		NOT NULL, " + 
+														"MINED			INTEGER		NOT NULL, " + 
+														"NOTES			TEXT)"; 
+	public String serverName;
+	public String worldName;
+	public String timestamp;
 	public String blockType;
-	public String dropType;
-	public int dropCount;
+	public String drops;
 	public int x;
 	public int y;
 	public int z;
@@ -12,16 +36,50 @@ public class RecordBlock extends Record{
 	public String notes;
 	
 	
-	public RecordBlock(String _serverName, String _worldName, String _blockType, String _dropType, int _dropCount, int _x, int _y, int _z, boolean _mined, String _notes){
+	public RecordBlock(String _serverName, String _worldName, String _blockType, String _drops, int _x, int _y, int _z, boolean _mined, String _notes){
+		TimeZone tz = TimeZone.getTimeZone("UTC");
+		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:22");
+		df.setTimeZone(tz);
+		this.timestamp = df.format(new Date());
 		this.serverName = _serverName;
 		this.worldName = _worldName;
 		this.blockType = _blockType;
-		this.dropType = _dropType;
-		this.dropCount = _dropCount;
+		this.drops = _drops;
 		this.x = _x;
 		this.y = _y;
 		this.z = _z;
 		this.mined = _mined;
 		this.notes = _notes;
+	}
+	
+
+	@Override
+	public void insertRecord(Connection c){
+		PreparedStatement prep = null;
+		try {
+			prep = c.prepareStatement("INSERT INTO BLOCKS (TIMESTAMP, WORLDNAME, BLOCKTYPE, DROPS, X, Y, Z, MINED, NOTES) " +
+					 	    		  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);");
+			prep.setString(1, this.timestamp);
+			prep.setString(2, this.worldName);
+			prep.setString(3, this.blockType);
+			prep.setString(4, this.drops);
+			prep.setInt(5, this.x);
+			prep.setInt(6, this.y);
+			prep.setInt(7, this.z);
+			prep.setInt(8, this.mined?1:0);
+			prep.setString(9, this.notes);
+			prep.execute();
+			prep.close();
+			System.out.println("It looks like it was inserted..");
+		} catch (SQLException e) {
+			e.printStackTrace();
+			Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("\u00A7cDatabase block insert failed!"));
+		}
+	}
+
+
+	@Override
+	public String getServerName() {
+		return(this.serverName);
 	}
 }

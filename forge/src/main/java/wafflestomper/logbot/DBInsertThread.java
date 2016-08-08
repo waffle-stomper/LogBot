@@ -6,6 +6,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import net.minecraft.client.Minecraft;
@@ -18,32 +19,13 @@ public class DBInsertThread implements Runnable{
 	private static boolean terminate = false;
 	private static final String threadName = "InsertThread";
 	public static ArrayBlockingQueue queue = new ArrayBlockingQueue(512);
-	private static final String createBlocksTable = "CREATE TABLE IF NOT EXISTS BLOCKS " +
-			 	                 					"(ID			INTEGER		PRIMARY KEY ASC, " +
-								 	                 "TIMESTAMP	  	DATETIME 	DEFAULT CURRENT_TIMESTAMP, " +	
-								 	                 "WORLDNAME     TEXT    	NOT NULL, " + 
-								 	                 "BLOCKTYPE     TEXT     	NOT NULL, " +
-								 	                 "DROPTYPE		TEXT     	NOT NULL, " +
-								 	                 "DROPCOUNT		INTEGER     NOT NULL, " + 
-								 	                 "X             INTEGER     NOT NULL, " + 
-								 	                 "Y             INTEGER     NOT NULL, " + 
-								 	                 "Z             INTEGER		NOT NULL, " + 
-								 	                 "MINED		   	INTEGER		NOT NULL, " + 
-								 	                 "NOTES         TEXT)"; 
-	private static final String createChestsTable = "CREATE TABLE IF NOT EXISTS CHESTS " +
-								 	                "(ID			INTEGER		PRIMARY KEY ASC, " +
-								 	                "TIMESTAMP		DATETIME 	DEFAULT CURRENT_TIMESTAMP, " +	
-								 	                "WORLDNAME		TEXT		NOT NULL, " +
-								 	                "X				INTEGER		NOT NULL, " + 
-								                    "Y				INTEGER		NOT NULL, " + 
-								 	                "Z				INTEGER		NOT NULL, " + 
-								 	                "MINECART		INTEGER		NOT NULL, " + 
-								 	                "CONTENTS		TEXT, " +
-								 	                "NOTES			TEXT)"; 
-	private static final DBInsertThread instance;
+	public static ArrayList<String> createTableStatements = new ArrayList<String>(); 
+	
+	
+	public static final DBInsertThread INSTANCE;
 	static{
 		try{
-			instance = new DBInsertThread();
+			INSTANCE = new DBInsertThread();
 		}
 		catch (Exception e){
 			throw new ExceptionInInitializerError(e);
@@ -58,6 +40,14 @@ public class DBInsertThread implements Runnable{
 	
 	public synchronized static boolean isSQLDriverMissing(){
 		return(sqlDriverNotFound_databaseDisabled);
+	}
+	
+	
+	/**
+	 * Adds a table creation statement to the list
+	 */
+	public synchronized static void registerCreateTable(String tableStatement){
+		createTableStatements.add(tableStatement);
 	}
 	
 	
@@ -86,57 +76,6 @@ public class DBInsertThread implements Runnable{
         return(dbConnection);
     }
 		
-	
-	private static void insertBlock(RecordBlock block, Connection c){
-		PreparedStatement prep = null;
-		try {
-			prep = c.prepareStatement("INSERT INTO BLOCKS (TIMESTAMP, WORLDNAME, BLOCKTYPE, DROPTYPE, DROPCOUNT, X, Y, Z, MINED, NOTES) " +
-					 	    		  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);");
-			prep.setString(1, block.timestamp);
-			prep.setString(2, block.worldName);
-			prep.setString(3, block.blockType);
-			if (block.dropCount <= 0){
-				prep.setString(4, "");
-			}
-			else{
-				prep.setString(4, block.dropType);
-			}
-			prep.setInt(5, block.dropCount);
-			prep.setInt(6, block.x);
-			prep.setInt(7, block.y);
-			prep.setInt(8, block.z);
-			prep.setInt(9, block.mined?1:0);
-			prep.setString(10, block.notes);
-			prep.execute();
-			prep.close();
-		} catch (SQLException e) {
-			e.printStackTrace();
-			addChatError("Database block insert failed!");
-		}
-	}
-	
-	
-	private static void insertChest(RecordChest chest, Connection c){
-		PreparedStatement prep = null;
-		try {
-			prep = c.prepareStatement("INSERT INTO CHESTS (TIMESTAMP, WORLDNAME, X, Y, Z, MINECART, CONTENTS, NOTES) " + 
-									  "VALUES (?, ?, ?, ?, ?, ?, ?, ?);");
-			prep.setString(1, chest.timestamp);
-			prep.setString(2, chest.worldName);
-			prep.setInt(3, chest.x);
-			prep.setInt(4, chest.y);
-			prep.setInt(5, chest.z);
-			prep.setInt(6, chest.minecartChest?1:0);
-			prep.setString(7, chest.contents);
-			prep.setString(8, chest.notes);
-			prep.execute();
-			prep.close();
-		} catch (SQLException e) {
-			e.printStackTrace();
-			addChatError("Database chest insert failed!");
-		}
-	}
-	
 	
 	@Override
 	public void run() {
@@ -169,8 +108,9 @@ public class DBInsertThread implements Runnable{
 						
 						// Make sure both tables exist
 						Statement stmt = c.createStatement();
-						stmt.executeUpdate(createBlocksTable);
-						stmt.executeUpdate(createChestsTable);
+						for (String createTableStat : createTableStatements){
+							stmt.executeUpdate(createTableStat);
+						}
 						stmt.close();
 						
 						// Add each record from the queue to the database until the queue is empty
@@ -183,11 +123,9 @@ public class DBInsertThread implements Runnable{
 								e.printStackTrace();
 								break;
 							}
-							if (nextRecord instanceof RecordBlock){
-								insertBlock((RecordBlock)nextRecord, c);
-							}
-							else if (nextRecord instanceof RecordChest){
-								insertChest((RecordChest)nextRecord, c);
+							if (nextRecord instanceof Record){
+								System.out.println("Inserting record..");
+								((Record)nextRecord).insertRecord(c);
 							}
 							insertCount++;
 						}

@@ -4,6 +4,7 @@
     "1.10-recommended": "0.2.6"
   },
   "1.10":{
+    "0.2.8": "* Refactored Record classes and DB thread to support extensibility\n* Added missing text output for blocks",
     "0.2.6": "* Completely reworked mined block algorithm to deal with HiddenOre\n* Fixed minecart chest crash - thanks Sort!\n* Drastically improved item/block metadata logging",
     "0.2.2": "Packaged sqlite-jdbc with the mod to simplify deployment",
     "0.1.8": "Added update notifications"

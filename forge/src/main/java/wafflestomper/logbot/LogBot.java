@@ -45,7 +45,7 @@ import wafflestomper.wafflecore.WaffleCore;
 public class LogBot{
 	
     public static final String MODID = "LogBot";
-    public static final String VERSION = "0.2.7";
+    public static final String VERSION = "0.2.8";
     public static final String NAME = "LogBot";
     
     Minecraft mc;
@@ -53,7 +53,7 @@ public class LogBot{
     private KeyBindings keybindings;
     private ConfigManager config;
     private boolean logMasterEnable = true;
-    private DBInsertThread db = new DBInsertThread();
+    private DBInsertThread db = DBInsertThread.INSTANCE;
     private static final Logger logger = LogManager.getLogger("LogBot");
     private static WaffleCore wafflecore;
     
@@ -71,10 +71,12 @@ public class LogBot{
     	// Make sure the sqlite driver is available
     	try {
 			Class.forName("org.sqlite.JDBC");
+			this.db.registerCreateTable(RecordBlock.createTableStatement);
+			this.db.registerCreateTable(RecordChest.createTableStatement);
 			this.db.start();
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
-			DBInsertThread.setSQLDriverMissing();
+			this.db.setSQLDriverMissing();
 		}
     }
     
@@ -396,18 +398,33 @@ public class LogBot{
     }
     
     
-    private void addBlockToDB(BlockDetail block, String dropName, int dropCount){
-    	String serverName = wafflecore.worldInfo.getNiceServerIP();
-		String worldName = wafflecore.worldInfo.getWorldName();
-		String blockName = block.blockName;
-		int x = block.pos.getX();
-		int y = block.pos.getY();
-		int z = block.pos.getZ();
+    private void addBlockToTextFile(BlockDetail block, String drops){
+    	if (this.config.logToTextFiles){
+	    	String serverName = wafflecore.worldInfo.getNiceServerIP();
+			String worldName = wafflecore.worldInfo.getWorldName();
+			String blockName = block.blockName;
+			int x = block.pos.getX();
+			int y = block.pos.getY();
+			int z = block.pos.getZ();
+			logger.debug("Adding " + block.toString() + " to blocks file");
+			String outString = worldName + "," + blockName + "," + drops + "," + x + "," + y + "," + z;
+			this.writeFile(outString, "blocks.txt");
+		}
 		
-		if (this.config.logToDB){
+    }
+    
+    
+    private void addBlockToDB(BlockDetail block, String drops){
+    	if (this.config.logToDB){
+	    	String serverName = wafflecore.worldInfo.getNiceServerIP();
+			String worldName = wafflecore.worldInfo.getWorldName();
+			String blockName = block.blockName;
+			int x = block.pos.getX();
+			int y = block.pos.getY();
+			int z = block.pos.getZ();
 			try {
 				logger.debug("Adding " + block.toString() + " to database");
-				this.db.queue.put(new RecordBlock(serverName, worldName, blockName, dropName, dropCount, x, y, z, true, ""));
+				this.db.queue.put(new RecordBlock(serverName, worldName, blockName, drops, x, y, z, true, ""));
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -464,7 +481,8 @@ public class LogBot{
     		if (System.currentTimeMillis() - currBlock.hitTime > 30000 || !this.mc.theWorld.isBlockLoaded(currBlock.pos)){
     			logger.debug("Removing stale entry [" + currBlock.toString() + "] from miningBlocks");
     			if (currBlock.hasAirTime()){
-    				this.addBlockToDB(currBlock, "", 0);
+    				this.addBlockToDB(currBlock, "");
+    				this.addBlockToTextFile(currBlock, "");
     			}
     			blockIter.remove();
     			continue;
@@ -496,32 +514,41 @@ public class LogBot{
         			dropMatches.clear();
         			break; 
         		}
-        		if (dropMatches.isEmpty()){
-        			dropMatches.add(currDrop);
-        			logger.debug("adding " + currDrop.id + "[" + currDrop.drop + "]");
-        		}
-        		else{
-        			// Make sure the first item in the list is the same as the new one
-        			if (currDrop.drop.equals(dropMatches.get(0).drop)){
-        				dropMatches.add(currDrop);
-        				logger.debug("adding " + currDrop.id + " [" + currDrop.drop + "]");
-        			}
-        			else{
-        				logger.warn("Mismatching drop found at " + currDrop.sourcePos.toString()+ " [" + currDrop.drop + "]");
-        			}
-        		}
+    			dropMatches.add(currDrop);
+    			logger.debug("adding " + currDrop.id + "[" + currDrop.drop + "]");
     		}
     		
-    		// If we've successfully collected the drops for this block, add it to the database and remove it and the drops from their respective lists
+    		// If we've successfully collected drops for this block, add it to the database and remove it and the drops from their respective lists
     		if (!dropMatches.isEmpty()){
-    			DroppedItem firstDrop = dropMatches.get(0);
-    			String dropName = firstDrop.drop;
-    			int dropCount = dropMatches.size();
-    			this.addBlockToDB(currBlock, dropName, dropCount);
-    			blockIter.remove();
+    			HashMap<String,Integer> dropCounts = new HashMap<String,Integer>();
+    			// Group drops and remove them from newItems
     			for(DroppedItem d : dropMatches){
+    				if (dropCounts.containsKey(d.drop)){
+    					dropCounts.put(d.drop, dropCounts.get(d.drop)+1);
+    				}
+    				else{
+    					dropCounts.put(d.drop, 1);
+    				}
     				this.newItems.remove(d.id);
     			}
+    			
+    			String drops = "";
+    			for(Iterator<HashMap.Entry<String,Integer>>dIter = dropCounts.entrySet().iterator(); dIter.hasNext();){
+            		HashMap.Entry<String,Integer> dEntry = dIter.next();
+            		String dropName = dEntry.getKey();
+            		int dropCount = dEntry.getValue();
+            		if (drops.isEmpty()){
+            			drops = dropCount + "x" + dropName; 
+            		}
+            		else{
+            			drops = drops + "," + dropCount + "x" + dropName; 
+            		}
+    			}
+    			
+    			this.addBlockToDB(currBlock, drops);
+    			this.addBlockToTextFile(currBlock, drops);
+    			
+    			blockIter.remove();
     		}
     		
     	}
