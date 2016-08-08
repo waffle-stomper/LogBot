@@ -12,7 +12,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.text.TextComponentString;
 
-public class DBInsertThread implements Runnable{
+public class DBThread implements Runnable{
 
 	private static boolean sqlDriverNotFound_databaseDisabled = false;
 	private Thread t;
@@ -22,10 +22,10 @@ public class DBInsertThread implements Runnable{
 	public static ArrayList<String> createTableStatements = new ArrayList<String>(); 
 	
 	
-	public static final DBInsertThread INSTANCE;
+	public static final DBThread INSTANCE;
 	static{
 		try{
-			INSTANCE = new DBInsertThread();
+			INSTANCE = new DBThread();
 		}
 		catch (Exception e){
 			throw new ExceptionInInitializerError(e);

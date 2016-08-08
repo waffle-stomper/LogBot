@@ -53,7 +53,7 @@ public class LogBot{
     private KeyBindings keybindings;
     private ConfigManager config;
     private boolean logMasterEnable = true;
-    private DBInsertThread db = DBInsertThread.INSTANCE;
+    private DBThread db = DBThread.INSTANCE;
     private static final Logger logger = LogManager.getLogger("LogBot");
     private static WaffleCore wafflecore;
     
