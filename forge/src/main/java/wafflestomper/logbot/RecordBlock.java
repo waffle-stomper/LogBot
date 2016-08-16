@@ -34,13 +34,23 @@ public class RecordBlock implements Record{
 	public int z;
 	public boolean mined;
 	public String notes;
+	private boolean isRequest;
+	private long createdTime = System.currentTimeMillis();;
 	
 	
-	public RecordBlock(String _serverName, String _worldName, String _blockType, String _drops, int _x, int _y, int _z, boolean _mined, String _notes){
+	public void setTime(){
 		TimeZone tz = TimeZone.getTimeZone("UTC");
 		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:22");
 		df.setTimeZone(tz);
 		this.timestamp = df.format(new Date());
+	}
+	
+	
+	/**
+	 * Constructor for inserting blocks into the database
+	 */
+	public RecordBlock(String _serverName, String _worldName, String _blockType, String _drops, int _x, int _y, int _z, boolean _mined, String _notes){
+		this.setTime();
 		this.serverName = _serverName;
 		this.worldName = _worldName;
 		this.blockType = _blockType;
@@ -50,6 +60,7 @@ public class RecordBlock implements Record{
 		this.z = _z;
 		this.mined = _mined;
 		this.notes = _notes;
+		this.isRequest = false;
 	}
 	
 
@@ -70,7 +81,6 @@ public class RecordBlock implements Record{
 			prep.setString(9, this.notes);
 			prep.execute();
 			prep.close();
-			System.out.println("It looks like it was inserted..");
 		} catch (SQLException e) {
 			e.printStackTrace();
 			Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("\u00A7cDatabase block insert failed!"));
@@ -81,5 +91,24 @@ public class RecordBlock implements Record{
 	@Override
 	public String getServerName() {
 		return(this.serverName);
+	}
+
+
+	@Override
+	public boolean isRequest() {
+		return(this.isRequest);
+	}
+
+
+	@Override
+	public void requestRecord(Connection c) {
+		//TODO: Write this!
+		System.out.println("THIS HAS NOT BEEN IMPLEMENTED YET. BAD THINGS MIGHT HAPPEN");
+	}
+	
+	
+	@Override
+	public long getTimeExisted(){
+		return(System.currentTimeMillis()-this.createdTime);
 	}
 }

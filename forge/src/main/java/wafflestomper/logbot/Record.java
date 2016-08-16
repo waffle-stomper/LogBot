@@ -15,4 +15,9 @@ public interface Record {
 	
 	public abstract void insertRecord(Connection c);
 	
+	public abstract boolean isRequest();
+	
+	public abstract void requestRecord(Connection c);
+	
+	public abstract long getTimeExisted();
 }
