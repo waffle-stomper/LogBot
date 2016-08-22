@@ -339,13 +339,13 @@ public class GuiLogBotChest extends GuiContainer{
     	
     	// Draw tooltip and/or database information
     	InventoryPlayer inventoryplayer = this.mc.thePlayer.inventory;
-    	//for (int slotNum=0; slotNum < this.lowerChestInventory.getSizeInventory(); slotNum++){
     	for (int slotNum=0; slotNum < this.inventorySlots.inventorySlots.size(); slotNum++){
     		Slot slot = this.inventorySlots.getSlot(slotNum);
     		if (this.isPointInRegion(slot.xDisplayPosition, slot.yDisplayPosition, 16, 16, mouseX, mouseY) && slot.canBeHovered()){
     			List<String> toolTip = new ArrayList<String>();
     			FontRenderer font = null;
     			ItemStack currStack = null;
+    			// Standard tooltip
 		    	if (inventoryplayer.getItemStack() == null && slot != null && slot.getHasStack()){
 		    		currStack = slot.getStack();
 		        	font = currStack.getItem().getFontRenderer(currStack);
@@ -353,21 +353,36 @@ public class GuiLogBotChest extends GuiContainer{
 
 		            for (int i = 0; i < toolTip.size(); ++i){
 		                if (i == 0){
-		                	toolTip.set(i, currStack.getRarity().rarityColor +""+ TextFormatting.BOLD+ (String)toolTip.get(i));
+		                	toolTip.set(i, currStack.getRarity().rarityColor + (String)toolTip.get(i));
 		                }
 		                else{
 		                	toolTip.set(i, TextFormatting.GRAY + (String)toolTip.get(i));
 		                }
 		            }
-		            if (slotNum < this.dbChest.size()){
-		            	toolTip.add("");
-		            }
 		        }
 		    	
 		    	if (slotNum < this.dbChest.size()){
 		    		DumbItemStack dbStack = this.dbChest.get(slotNum);
-		    		if (dbStack != null || currStack != null){
-		    			toolTip.addAll(makeDBToolTip(dbStack, currStack));
+		    		
+		    		int oldCount = 0;
+	    			int newCount = 0;
+	    			String oldItem = "";
+	    			String newItem = "";
+	    			
+	    			if (dbStack != null){
+	    				oldCount = dbStack.count;
+	    				oldItem = dbStack.item;
+	    			}
+	    			if (currStack != null){
+	    				newCount = currStack.stackSize;
+	    				newItem = LogBot.getDetailedItemName(currStack);
+	    			}
+	    			
+		    		if (oldCount != newCount || oldItem != newItem){
+	    				if (toolTip.size() > 0){
+	    		            toolTip.add("");
+	    				}
+	    				toolTip.addAll(makeDBToolTip(dbStack, currStack));
 		    		}
 		    	}
 		    	this.drawHoveringText(toolTip, mouseX, mouseY, (font == null ? fontRendererObj : font));

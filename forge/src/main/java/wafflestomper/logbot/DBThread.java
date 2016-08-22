@@ -6,7 +6,11 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.TimeZone;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import net.minecraft.client.Minecraft;
@@ -31,6 +35,15 @@ public class DBThread implements Runnable{
 			throw new ExceptionInInitializerError(e);
 		}
 	}
+	
+	
+	public static String getUTCTimestamp(){
+		TimeZone tz = TimeZone.getTimeZone("UTC");
+		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		df.setTimeZone(tz);
+		return(df.format(new Date()));
+	}
+	
 	
 	
 	public synchronized static void setSQLDriverMissing(){

@@ -54,7 +54,7 @@ import wafflestomper.wafflecore.WorldInfoEvent;
 public class LogBot{
 	
     public static final String MODID = "LogBot";
-    public static final String VERSION = "0.3.0";
+    public static final String VERSION = "0.3.5";
     public static final String NAME = "LogBot";
     
     private static Minecraft mc;
@@ -64,6 +64,11 @@ public class LogBot{
     private static final Logger logger = LogManager.getLogger("LogBot");
     private static WaffleCore wafflecore;
     
+    public static LogBot INSTANCE;
+    
+    public LogBot(){
+    	INSTANCE = this;
+    }
     
     @EventHandler
 	public void preInit(FMLPreInitializationEvent event) {

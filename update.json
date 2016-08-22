@@ -1,12 +1,16 @@
 {
   "homepage": "https://github.com/waffle-stomper/LogBot/releases",
   "promos":{
-    "1.10-recommended": "0.2.6"
+    "1.10-recommended": "0.3.5"
   },
   "1.10":{
+    "0.3.5": "* More extensibility\n* Slight changes to database structure",
+    "0.3.3": "* Internal extensibility changes",
+    "0.3.0": "* Added tooltips to detail the previous and current states of a chest slot",
+    "0.2.9": "* Removed key toggle\n* Ditched the shoddy old chest logging algorithm for something much more elegant (though perhaps less compatible with other mods)\n* Reverted to 1.10 for compatibility with users",
     "0.2.8": "* Refactored Record classes and DB thread to support extensibility\n* Added missing text output for blocks",
     "0.2.6": "* Completely reworked mined block algorithm to deal with HiddenOre\n* Fixed minecart chest crash - thanks Sort!\n* Drastically improved item/block metadata logging",
-    "0.2.2": "Packaged sqlite-jdbc with the mod to simplify deployment",
-    "0.1.8": "Added update notifications"
+    "0.2.2": "* Packaged sqlite-jdbc with the mod to simplify deployment",
+    "0.1.8": "* Added update notifications"
   }
 }

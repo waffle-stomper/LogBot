@@ -35,22 +35,14 @@ public class RecordBlock implements Record{
 	public boolean mined;
 	public String notes;
 	private boolean isRequest;
-	private long createdTime = System.currentTimeMillis();;
-	
-	
-	public void setTime(){
-		TimeZone tz = TimeZone.getTimeZone("UTC");
-		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:22");
-		df.setTimeZone(tz);
-		this.timestamp = df.format(new Date());
-	}
+	private long createdTime = System.currentTimeMillis();
 	
 	
 	/**
 	 * Constructor for inserting blocks into the database
 	 */
 	public RecordBlock(String _serverName, String _worldName, String _blockType, String _drops, int _x, int _y, int _z, boolean _mined, String _notes){
-		this.setTime();
+		this.timestamp = DBThread.getUTCTimestamp();
 		this.serverName = _serverName;
 		this.worldName = _worldName;
 		this.blockType = _blockType;

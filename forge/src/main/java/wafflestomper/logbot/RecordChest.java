@@ -37,22 +37,14 @@ public class RecordChest implements Record{
 	public String contents;
 	public String notes;
 	private boolean isRequest = false;
-	private long createdTime = System.currentTimeMillis();;
-	
-	
-	public void setTime(){
-		TimeZone tz = TimeZone.getTimeZone("UTC");
-		DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:22");
-		df.setTimeZone(tz);
-		this.timestamp = df.format(new Date());
-	}
+	private long createdTime = System.currentTimeMillis();
 	
 	
 	/**
 	 * Standard insert record constructor
 	 */
 	public RecordChest(String _serverName, String _worldName, int _x, int _y, int _z, boolean _minecartChest, String _contents, String _notes){
-		this.setTime();
+		this.timestamp = DBThread.getUTCTimestamp();
 		this.serverName = _serverName;
 		this.worldName = _worldName;
 		this.x = _x;
