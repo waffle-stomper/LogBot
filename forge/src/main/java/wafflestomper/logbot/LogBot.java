@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -45,7 +44,6 @@ import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.Mod.EventHandler;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.Event;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.PlayerTickEvent;
 import wafflestomper.logbot.commands.CommandAddNote;
@@ -66,7 +64,7 @@ import wafflestomper.wafflecore.WorldInfoEvent;
 public class LogBot{
 	
     public static final String MODID = "logbot";
-    public static final String VERSION = "0.3.8";
+    public static final String VERSION = "0.3.9";
     public static final String NAME = "LogBot";
     
     private static Minecraft mc;
@@ -598,7 +596,7 @@ public class LogBot{
     
     
     private void addSpawnerToDB(int x, int y, int z){
-    	if (config.logToDB){
+    	if (config.logSpawners){
 	    	String serverName = wafflecore.worldInfo.getNiceServerIP();
 			String worldName = wafflecore.worldInfo.getWorldName();
 			int worldID = mc.player.world.provider.getDimension();

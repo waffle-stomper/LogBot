@@ -62,6 +62,11 @@ public class DBThread implements Runnable{
 	}
 	
 	
+	public synchronized static String getServerName(){
+		return currentServer;
+	}
+	
+	
 	/**
 	 * Adds a table creation statement to the list
 	 */
@@ -152,12 +157,16 @@ public class DBThread implements Runnable{
 									currRec.requestRecord(c);
 								}
 								else{
-									// Insert record into the database
-									currRec.insertRecord(c);
+									if (getServerName().equals(currRec.getServerName())){
+										// Insert record into the database
+										currRec.insertRecord(c);
+									}
+									else{
+										setServerName(currRec.getServerName());
+										break;
+									}
 								}
 							}
-							
-							
 						}
 						
 					    c.close();
