@@ -1,4 +1,4 @@
-package wafflestomper.logbot;
+package wafflestomper.logbot.database;
 
 import java.sql.Connection;
 import java.text.DateFormat;

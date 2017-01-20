@@ -1,15 +1,10 @@
-package wafflestomper.logbot;
+package wafflestomper.logbot.database;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.util.text.TextComponentString;
+import wafflestomper.logbot.util.Printer;
 
 public class RecordBlock implements Record{
 	
@@ -35,6 +30,7 @@ public class RecordBlock implements Record{
 	public boolean mined;
 	public String notes;
 	private boolean isRequest;
+	private int requestLimit = 1; // How many records should be returned
 	private long createdTime = System.currentTimeMillis();
 	
 	
@@ -69,13 +65,13 @@ public class RecordBlock implements Record{
 			prep.setInt(5, this.x);
 			prep.setInt(6, this.y);
 			prep.setInt(7, this.z);
-			prep.setInt(8, this.mined?1:0);
+			prep.setBoolean(8, this.mined);
 			prep.setString(9, this.notes);
 			prep.execute();
 			prep.close();
 		} catch (SQLException e) {
 			e.printStackTrace();
-			Minecraft.getMinecraft().thePlayer.addChatMessage(new TextComponentString("\u00A7cDatabase block insert failed!"));
+			Printer.gamePrint("\u00A7cDatabase block insert failed!");
 		}
 	}
 

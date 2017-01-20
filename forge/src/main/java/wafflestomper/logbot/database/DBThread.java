@@ -1,4 +1,4 @@
-package wafflestomper.logbot;
+package wafflestomper.logbot.database;
 
 import java.io.File;
 import java.sql.Connection;
@@ -15,6 +15,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.text.TextComponentString;
+import wafflestomper.logbot.util.Printer;
 
 public class DBThread implements Runnable{
 
@@ -65,14 +66,16 @@ public class DBThread implements Runnable{
 	 * Adds a table creation statement to the list
 	 */
 	public synchronized static void registerCreateTable(String tableStatement){
+    // TODO: Register the class instead of just passing the table create statement to this method
+    // That way I can maintain a list of classes that have registered, and reject any instances of unregistered classes in the queue
 		createTableStatements.add(tableStatement);
 	}
 	
 	
 	private static void addChatError(String error){
 		Minecraft mc = Minecraft.getMinecraft();
-		if (mc.theWorld != null){
-			mc.thePlayer.addChatComponentMessage(new TextComponentString("\u00A7c" + error));
+		if (mc.world != null){
+			Printer.gamePrint("\u00A7c" + error);
 		}
 	}
 	

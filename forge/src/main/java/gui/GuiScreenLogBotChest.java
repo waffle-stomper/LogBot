@@ -1,4 +1,4 @@
-package wafflestomper.logbot;
+package gui;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -21,13 +21,17 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
-import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import wafflestomper.logbot.LogBot;
+import wafflestomper.logbot.LogBotRecordsRetrievedEvent;
+import wafflestomper.logbot.database.DBThread;
+import wafflestomper.logbot.database.Record;
+import wafflestomper.logbot.database.RecordChest;
+import wafflestomper.logbot.util.ConfigManager;
+import wafflestomper.logbot.util.Printer;
 import wafflestomper.wafflecore.WaffleCore;
 
-public class GuiLogBotChest extends GuiContainer{
+public class GuiScreenLogBotChest extends GuiContainer{
 
     /** The ResourceLocation containing the chest GUI texture. */
     private static final ResourceLocation CHEST_GUI_TEXTURE = new ResourceLocation("textures/gui/container/generic_54.png");
@@ -44,13 +48,14 @@ public class GuiLogBotChest extends GuiContainer{
     private ArrayList<DumbItemStack> dbChest = new ArrayList<DumbItemStack>();
     private static ConfigManager config = LogBot.getConfigManager();
     private static DBThread db = DBThread.INSTANCE;
+    private long dbRequestID = 0;
     
     private static final int RED = 0xAAFF0000;
     private static final int GREEN = 0xAA00FF00;
     private static final int BLUE = 0xAA0000FF;
     
-    public GuiLogBotChest(IInventory upperInv, IInventory lowerInv){
-        super(new ContainerChest(upperInv, lowerInv, Minecraft.getMinecraft().thePlayer));
+    public GuiScreenLogBotChest(IInventory upperInv, IInventory lowerInv){
+        super(new ContainerChest(upperInv, lowerInv, Minecraft.getMinecraft().player));
         this.upperChestInventory = upperInv;
         this.lowerChestInventory = lowerInv;
         this.allowUserInput = false;
@@ -75,15 +80,15 @@ public class GuiLogBotChest extends GuiContainer{
 				else if (this.inventoryRows == 6){
 					// This is a double chest. The most northwestern block location will go into this.chestPos 
 					// and the other one will go into this.chestPos2
-	    			if (mc.theWorld.getBlockState(cPos.north()).getBlock().getUnlocalizedName().equals("tile.chest")){
+	    			if (mc.world.getBlockState(cPos.north()).getBlock().getUnlocalizedName().equals("tile.chest")){
 	    				this.chestPos = cPos.north();
 	    				this.chestPos2 = cPos;
 	    			}
-	    			else if (this.mc.theWorld.getBlockState(cPos.west()).getBlock().getUnlocalizedName().equals("tile.chest")){
+	    			else if (this.mc.world.getBlockState(cPos.west()).getBlock().getUnlocalizedName().equals("tile.chest")){
 	    				this.chestPos = cPos.west();
 	    				this.chestPos2 = cPos;
 	    			}
-	    			else if (this.mc.theWorld.getBlockState(cPos.south()).getBlock().getUnlocalizedName().equals("tile.chest")){
+	    			else if (this.mc.world.getBlockState(cPos.south()).getBlock().getUnlocalizedName().equals("tile.chest")){
 	    				this.chestPos = cPos;
 	    				this.chestPos2 = cPos.south();
 	    			}
@@ -95,7 +100,7 @@ public class GuiLogBotChest extends GuiContainer{
 			}
 			else{
 				logger.error("Couldn't get chest pos");
-				this.mc.thePlayer.addChatMessage(new TextComponentString("\u00A7cCouldn't get chest pos"));
+				Printer.gamePrint("\u00A7cCouldn't get chest pos");
 				return;
 			}
 		}
@@ -105,7 +110,8 @@ public class GuiLogBotChest extends GuiContainer{
 			String serverName = wafflecore.worldInfo.getNiceServerIP();
 			String worldName = wafflecore.worldInfo.getWorldName();
 			try {
-				DBThread.toDBqueue.put(new RecordChest(serverName, worldName, this.chestPos, this.minecartChest));
+				this.dbRequestID = System.currentTimeMillis();
+				DBThread.toDBqueue.put(new RecordChest(serverName, worldName, this.chestPos, this.minecartChest, 5, this.dbRequestID));
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -117,7 +123,12 @@ public class GuiLogBotChest extends GuiContainer{
      * Initially I was catching the event here, but it would fire multiple times and I didn't have the energy
      * to debug it, so I moved it to the main class
      */
-    public void chestRecordReceived(RecordChest rChest){
+    public void chestRecordsReceived(LogBotRecordsRetrievedEvent event){
+    	List<Record> rChests = event.getRecords();
+    	if (rChests.isEmpty() || event.getRequestID() != this.dbRequestID){ 
+    		return; 
+    	}
+    	RecordChest rChest = (RecordChest)rChests.get(0);
 		BlockPos pos = new BlockPos(rChest.x, rChest.y, rChest.z);
 		if (pos.equals(this.chestPos)){
 			String splitter = "(?<!\\\\)" + Pattern.quote(",");
@@ -160,8 +171,8 @@ public class GuiLogBotChest extends GuiContainer{
 		Slot slot = this.inventorySlots.getSlot(slotNum);
 		GlStateManager.disableLighting();
         GlStateManager.disableDepth();
-        int j1 = slot.xDisplayPosition;
-        int k1 = slot.yDisplayPosition;
+        int j1 = slot.xPos;// .xDisplayPosition;
+        int k1 = slot.yPos;// yDisplayPosition;
         GlStateManager.colorMask(true, true, true, false);
         drawRect(j1, k1, j1+16, k1+16, color);
         GlStateManager.colorMask(true, true, true, true);
@@ -210,7 +221,7 @@ public class GuiLogBotChest extends GuiContainer{
 			}
 			else{
 				String currItem = LogBot.getDetailedItemName(currStack);
-				int currCount = currStack.stackSize;
+				int currCount = currStack.getCount();
 				String dbItem = dbStack.item;
 				int dbCount = dbStack.count;
 				if (currItem.equals(dbItem)){
@@ -242,7 +253,7 @@ public class GuiLogBotChest extends GuiContainer{
 		for(int i=0; i<this.lowerChestInventory.getSizeInventory(); i++){
 			ItemStack currStack = this.lowerChestInventory.getStackInSlot(i);
 			if (currStack != null){
-				contents = contents + String.valueOf(currStack.stackSize) + "x" + LogBot.getDetailedItemName(currStack);
+				contents = contents + String.valueOf(currStack.getCount()) + "x" + LogBot.getDetailedItemName(currStack);
 			}
 			if  (i < this.lowerChestInventory.getSizeInventory()-1){
 				contents = contents + ",";
@@ -267,16 +278,16 @@ public class GuiLogBotChest extends GuiContainer{
     			suffix = "chestposxyz_" + chestPos.getX() + "_" + chestPos.getY() + "_" + chestPos.getZ();
     		}
     		else{
-    			suffix = "playerposxyz_" + (int)this.mc.thePlayer.posX + "_" + (int)this.mc.thePlayer.posY + "_" + (int)this.mc.thePlayer.posZ;
+    			suffix = "playerposxyz_" + (int)this.mc.player.posX + "_" + (int)this.mc.player.posY + "_" + (int)this.mc.player.posZ;
     		}
-    		LogBot.writeFile(contents, "chests" + File.separator + this.mc.thePlayer.getName() + "_" + suffix + ".txt");
+    		LogBot.writeFile(contents, "chests" + File.separator + this.mc.player.getName() + "_" + suffix + ".txt");
 		}
 		
 		// Write to DB
 		if (config.logToDB){
     		String serverName = wafflecore.worldInfo.getNiceServerIP();
 	    	String worldName = wafflecore.worldInfo.getWorldName();
-	    	logger.warn("Writing entry for world: " + WaffleCore.worldInfo.getWorldName());
+	    	logger.debug("Writing entry for world: " + WaffleCore.worldInfo.getWorldName());
 	    	long first = System.currentTimeMillis();
 	    	try {
 				db.toDBqueue.put(new RecordChest(serverName, worldName, chestPos.getX(), chestPos.getY(), chestPos.getZ(), this.minecartChest, contents, ""));
@@ -322,7 +333,7 @@ public class GuiLogBotChest extends GuiContainer{
     			out.add("");
     		}
     		else{
-    			out.add(TextFormatting.WHITE + " " + String.valueOf(currStack.stackSize) + " x " + currSplit[0]);
+    			out.add(TextFormatting.WHITE + " " + String.valueOf(currStack.getCount()) + " x " + currSplit[0]);
     			for (int sPos=1; sPos<currSplit.length; sPos++){
     				out.add(TextFormatting.WHITE + "  " + currSplit[sPos]);
     			}
@@ -338,10 +349,10 @@ public class GuiLogBotChest extends GuiContainer{
     	super.drawScreen(mouseX, mouseY, partialTicks);
     	
     	// Draw tooltip and/or database information
-    	InventoryPlayer inventoryplayer = this.mc.thePlayer.inventory;
+    	InventoryPlayer inventoryplayer = this.mc.player.inventory;
     	for (int slotNum=0; slotNum < this.inventorySlots.inventorySlots.size(); slotNum++){
     		Slot slot = this.inventorySlots.getSlot(slotNum);
-    		if (this.isPointInRegion(slot.xDisplayPosition, slot.yDisplayPosition, 16, 16, mouseX, mouseY) && slot.canBeHovered()){
+    		if (this.isPointInRegion(slot.xPos, slot.yPos, 16, 16, mouseX, mouseY) && slot.canBeHovered()){
     			List<String> toolTip = new ArrayList<String>();
     			FontRenderer font = null;
     			ItemStack currStack = null;
@@ -349,7 +360,7 @@ public class GuiLogBotChest extends GuiContainer{
 		    	if (inventoryplayer.getItemStack() == null && slot != null && slot.getHasStack()){
 		    		currStack = slot.getStack();
 		        	font = currStack.getItem().getFontRenderer(currStack);
-		            toolTip = currStack.getTooltip(this.mc.thePlayer, this.mc.gameSettings.advancedItemTooltips);
+		            toolTip = currStack.getTooltip(this.mc.player, this.mc.gameSettings.advancedItemTooltips);
 
 		            for (int i = 0; i < toolTip.size(); ++i){
 		                if (i == 0){
@@ -374,7 +385,7 @@ public class GuiLogBotChest extends GuiContainer{
 	    				oldItem = dbStack.item;
 	    			}
 	    			if (currStack != null){
-	    				newCount = currStack.stackSize;
+	    				newCount = currStack.getCount();
 	    				newItem = LogBot.getDetailedItemName(currStack);
 	    			}
 	    			

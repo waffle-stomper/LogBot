@@ -1,7 +1,11 @@
 {
   "homepage": "https://github.com/waffle-stomper/LogBot/releases",
   "promos":{
+    "1.11.2-recommended": "0.3.8",
     "1.10-recommended": "0.3.5"
+  },
+  "1.11.2":{
+    "0.3.8": "*Update to 1.11.2\n*Add Mob Spawner logger"
   },
   "1.10":{
     "0.3.5": "* More extensibility\n* Slight changes to database structure",
