@@ -17,9 +17,12 @@ import java.util.Map.Entry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.ibm.icu.text.DisplayContext.Type;
+
 import gui.GuiScreenChestSearch;
 import gui.GuiScreenLogBotChest;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockMobSpawner;
 import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
@@ -64,7 +67,7 @@ import wafflestomper.wafflecore.WorldInfoEvent;
 public class LogBot{
 	
     public static final String MODID = "logbot";
-    public static final String VERSION = "0.3.9";
+    public static final String VERSION = "0.4.0";
     public static final String NAME = "LogBot";
     
     private static Minecraft mc;
@@ -595,15 +598,14 @@ public class LogBot{
     }
     
     
-    private void addSpawnerToDB(int x, int y, int z){
+    private void addSpawnerToDB(int x, int y, int z, boolean inDungeon){
     	if (config.logSpawners){
 	    	String serverName = wafflecore.worldInfo.getNiceServerIP();
 			String worldName = wafflecore.worldInfo.getWorldName();
 			int worldID = mc.player.world.provider.getDimension();
-			String blockType = "";
 			try {
 				logger.debug("Adding spawner to database");
-				this.db.toDBqueue.put(new RecordMobSpawner(serverName, worldName, worldID, blockType, x, y, z, ""));
+				this.db.toDBqueue.put(new RecordMobSpawner(serverName, worldName, worldID, inDungeon, x, y, z, ""));
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -611,9 +613,26 @@ public class LogBot{
     }
     
     
+    /**
+     * Searches the 5x5x2 area under a spawner (at pos) for mossy cobblestone
+     */
+    private boolean isSpawnerInDungeon(int spawnerX, int spawnerY, int spawnerZ){
+    	for (int x=spawnerX-2; x<=spawnerX+2; x++){
+    		for (int y=spawnerY-1; y>=spawnerY-2; y--){
+    			for (int z=spawnerZ-2; z<=spawnerZ+2; z++){
+    				Block b = mc.world.getBlockState(new BlockPos(x, y, z)).getBlock();
+    				if (b.equals(Blocks.MOSSY_COBBLESTONE)){
+    					return true;
+    				}
+    			}
+    		}
+    	}
+    	return false;
+    }
+    
+    
     @SubscribeEvent
     public void playerTick(PlayerTickEvent event){
-    	//System.out.println(this.chunkList.size());
     	int processedChunkCount = 0;
     	long start = System.currentTimeMillis();
     	long time;
@@ -627,7 +646,8 @@ public class LogBot{
 			    		for (int z=0; z<16; z++){
 			    			for (int y=0; y<64; y++){
 			    				if (c.getBlockState(new BlockPos(x, y, z)).getBlock().equals(Blocks.MOB_SPAWNER)){
-			    					this.addSpawnerToDB(x + c.xPosition*16, y, z+c.zPosition*16);
+			    					boolean inDungeon = isSpawnerInDungeon(x + c.xPosition*16, y, z+c.zPosition*16);
+			    					this.addSpawnerToDB(x + c.xPosition*16, y, z+c.zPosition*16, inDungeon);
 			    				}
 			    			}
 			    		}
